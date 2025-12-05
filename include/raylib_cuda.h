@@ -6,54 +6,110 @@
 
 // To avoid name mangling while being compiled
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
-// =====================================================
-// 1. Data Types
-// =====================================================
 
-// A Wrapper around a raylib texture + CUDA Resource
-typedef struct RLC_Surface {
-    Texture2D texture; // Raylib texture for drawing
-    int width;
-    int height;
+    // =====================================================
+    // 1. Versions and constants
+    // =====================================================
 
-    // Internal use (Opaque Handles)
-    void *_cuda_res;
-    unsigned long long _surf_obj;
-} RLC_Surface;
+#define RLC_VERSION_MAJOR 1
+#define RLC_VERSION_MINOR 0
+#define RLC_VERSION_PATCH 0
 
-// =====================================================
-// 2. Library Management
-// =====================================================
+// Pixel format: RGBA8 (4 Bytes per pixel)
+// When writing from CUDA kernel use:
+// surf2DWrite(make_uchar4(r, g, b, a), surfObj, x * 4, y);
+#define RLC_BYTES_PER_PIXEL 4
 
-// Initializes cuda and checks for correct GPU
-// Return true on success and false if No CUDA enabled GPU is found
-bool RLC_Init(int width, int height, const char *title);
+    // =====================================================
+    // 2. Error Codes
+    // =====================================================
 
-// Closes window and cleans up
-void RLC_Close();
+    typedef enum RLC_ERROR
+    {
+        RLC_OK = 0,
+        RLC_ERROR_NO_CUDA_DEVICE,
+        RLC_ERROR_WRONG_GPU,
+        RLC_ERROR_REGISTER_FAILED,
+        RLC_ERROR_MAP_FAILED,
+        RLC_ERROR_NOT_MAPPED,
+        RLC_ERROR_ALREADY_MAPPED,
+        RLC_ERROR_NULL_SURFACE
+    } RLC_Error;
 
-// =====================================================
-// 3. Surface Management
-// =====================================================
+    // =====================================================
+    // 3. Data Types
+    // =====================================================
 
-// Creates a texture ready for CUDA Writing
-RLC_Surface RLC_CreateSurface(int width, int height);
+    // A Wrapper around a raylib texture + CUDA Resource
+    // Note: Fields prefixed with '_' are internal - do not modify directly.
+    typedef struct RLC_Surface
+    {
+        Texture2D texture; // Raylib texture for drawing
+        int width;         // Surface width in pixels
+        int height;        // Surface height in pixels
 
-// Frees the surface
-void RLC_UnloadSurface(RLC_Surface *surface);
+        // Internal Fields (Do not modify)
+        void *_cuda_res;              // CUDA Graphics resource handle
+        unsigned long long _surf_obj; // CUDA surface object (valid only when mapped)
+        bool _is_mapped;
+    } RLC_Surface;
 
-// =====================================================
-// 4. Execution Pipeline
-// =====================================================
+    // =====================================================
+    // 4. Library Management
+    // =====================================================
 
-// Locks the texture and return a CUDA Surface Object
-// Pass this `unsigned long long` to the kernel.
-unsigned long long RLC_BeginAccess(RLC_Surface *surface);
+    // Initializes CUDA and Raylib Window
+    // Return true on success, false if no compatible CUDA GPU is found
+    // On failure, the window is NOT left open
+    bool RLC_Init(int width, int height, const char *title);
 
-// Locks the texture and synchronizes the GPU
-void RLC_EndAccess(RLC_Surface* surface);
+    // Closes window and cleans up all resources
+    void RLC_Close();
+
+    // Return the last error code
+    RLC_Error RLC_GetLastError(void);
+
+    // Return a human-readable error message for the given error code
+    const char *RLC_ErrorString(RLC_Error error);
+
+    // =====================================================
+    // 5. Surface Management
+    // =====================================================
+
+    // Creates a surface for CUDA rendering
+    // Returns a surface with _cuda_res set to NULL on failure
+    // Checks with: if(surface._cuda_res == NULL) {/* handle error */}
+    RLC_Surface RLC_CreateSurface(int width, int height);
+
+    // Frees the surface and associated resources
+    // Safe to call with NULL or already-freed surface
+    void RLC_UnloadSurface(RLC_Surface *surface);
+
+    // =====================================================
+    // 6. Execution Pipeline
+    // =====================================================
+
+    // Begins CUDA access to the surface
+    // Returns a cudaSurfaceObject_t (as unsigned long long) for use in the kernels
+    // Returns 0 on failure - check RLC_GetLastError() for details
+    //
+    // Usage in CUDA kernel:
+    // cudaSurfaceObject_t surf = (cudaSurfaceObject_t)surfObj;
+    // surf2DWrite(make_uchar4(r, g, b, a), surf, x * 4, y);
+    //
+    // IMPORTANT: Must call RLC_EndAccess() before drawing with raylib
+    unsigned long long RLC_BeginAccess(RLC_Surface *surface);
+
+    // Ends CUDA access and Synchronizes
+    // Must be called after RLC_BeginAccess() before using texture in with Raylib
+    // Safe to call even if RLC_BeginAccess failed
+    void RLC_EndAccess(RLC_Surface *surface);
+
+    // Returns true if surface is currently mapped for CUDA access
+    bool RLC_IsMapped(const RLC_Surface *surface);
 
 #ifdef __cplusplus
 }

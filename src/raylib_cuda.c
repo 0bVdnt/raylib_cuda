@@ -1,73 +1,280 @@
 /*
-* Library Implementation of raylib_cuda.h
-* Handles raylib. No Windows/GL headers allowed here to prevent conflicts.
-*/
+ * raylib_cuda.c
+ * Library Implementation - handles raylib integration
+ * No Windows/GL headers here to prevent conflicts
+ */
 
-// System Headers
+#include "raylib_cuda.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-// Include Raylib
-#include "../include/raylib_cuda.h"
+// ===============================================================
+// Backend function declarations: Internal externs to C++ Backend
+// ===============================================================
 
-// Backend declarations: Internal externs to C++ Backend
 extern int rlc_backend_check();
-extern void *rlc_backend_register(unsigned int *id);
+extern void *rlc_backend_register(unsigned int id);
 extern void rlc_backend_unregister(void *res);
 extern unsigned long long rlc_backend_map(void *res);
 extern void rlc_backend_unmap(void *res, unsigned long long surf);
 
-// Implementation
+// ===============================================================
+// Global State
+// ===============================================================
+static RLC_Error g_last_error = RLC_OK;
 
-bool RLC_Init(int width, int height, const char *title) {
+// ===============================================================
+// Error Handling
+// ===============================================================
+
+static void rlc_set_error(RLC_Error err)
+{
+    g_last_error = err;
+    if (err != RLC_OK)
+    {
+        TraceLog(LOG_WARNING, "RLC: Error set: %s", RLC_ErrorString(err));
+    }
+}
+
+RLC_Error RLC_GetLastError(void)
+{
+    RLC_Error err = g_last_error;
+    g_last_error = RLC_OK; // Clear after reading
+    return err;
+}
+
+const char *RLC_ErrorString(RLC_Error error)
+{
+    switch (error)
+    {
+    case RLC_OK:
+        return "No Error";
+    case RLC_ERROR_NO_CUDA_DEVICE:
+        return "No CUDA device found";
+    case RLC_ERROR_WRONG_GPU:
+        return "Wrong GPU (Intel Integrated) Detected";
+    case RLC_ERROR_REGISTER_FAILED:
+        return "Failed to register texture with CUDA";
+    case RLC_ERROR_MAP_FAILED:
+        return "Failed to map resource for CUDA access";
+    case RLC_ERROR_NOT_MAPPED:
+        return "Surface is not mapped";
+    case RLC_ERROR_ALREADY_MAPPED:
+        return "Surface is already mapped";
+    case RLC_ERROR_NULL_SURFACE:
+        return "NULL surface pointer";
+    default:
+        return "Unknown error";
+    }
+}
+
+// ===============================================================
+// Library Management
+// ===============================================================
+
+bool RLC_Init(int width, int height, const char *title)
+{
+    g_last_error = RLC_OK;
+
+    // Initialize raylib window
     InitWindow(width, height, title);
-    
-    // Check CUDA
-    if (rlc_backend_check() != 0) {
-        TraceLog(LOG_ERROR, "RLC: CUDA Device not Found or Compatible !");
+
+    if (!IsWindowReady())
+    {
+        TraceLog(LOG_ERROR, "RLC: Failed to create window");
         return false;
     }
 
-    TraceLog(LOG_INFO, "RLC: Raylib-CUDA initialized successfully.");
+    // Check CUDA availability
+    int result = rlc_backend_check();
+    if (result != 0)
+    {
+        if (result == 1)
+        {
+            rlc_set_error(RLC_ERROR_NO_CUDA_DEVICE);
+            TraceLog(LOG_ERROR, "RLC: No CUDA device found");
+        }
+        else if (result == 2)
+        {
+            rlc_set_error(RLC_ERROR_WRONG_GPU);
+            TraceLog(LOG_ERROR, "RLC: Intel GPU detected - need discrete NVIDIA GPU");
+        }
+
+        // Clean up the window
+        CloseWindow();
+        return false;
+    }
+
+    TraceLog(LOG_INFO, "RLC: Raylib-CUDA v%d.%d.%d initialized successfully.",
+             RLC_VERSION_MAJOR, RLC_VERSION_MINOR, RLC_VERSION_PATCH);
     return true;
 }
 
-void RLC_Close() {
+void RLC_Close()
+{
     CloseWindow();
+    TraceLog(LOG_INFO, "RLC: Shutdown complete");
 }
 
-RLC_Surface RLC_CreateSurface(int width, int height) {
+// ===============================================================
+// Surface Management
+// ===============================================================
+
+RLC_Surface RLC_CreateSurface(int width, int height)
+{
     RLC_Surface surf = {0};
+
+    // Validate Dimensions
+    if (width <= 0 || height <= 0)
+    {
+        TraceLog(LOG_ERROR, "RLC: Invalid surface dimensions: %dx%d", width,
+                 height);
+        rlc_set_error(RLC_ERROR_REGISTER_FAILED);
+        return surf;
+    }
+
     surf.width = width;
     surf.height = height;
+    surf._is_mapped = false;
+    surf._surf_obj = 0;
 
     // Raylib: Create texture
     Image img = GenImageColor(width, height, BLACK);
+    if (img.data == NULL)
+    {
+        TraceLog(LOG_ERROR, "RLC: Failed to generate image");
+        rlc_set_error(RLC_ERROR_REGISTER_FAILED);
+        return surf;
+    }
+
     surf.texture = LoadTextureFromImage(img);
-    SetTextureFilter(surf.texture, TEXTURE_FILTER_POINT);
     UnloadImage(img);
 
-    // CUDA: Register (Backend handles GL types)
+    if (surf.texture.id == 0)
+    {
+        TraceLog(LOG_ERROR, "RLC: Failed to create a texture");
+        rlc_set_error(RLC_ERROR_REGISTER_FAILED);
+        return surf;
+    }
+
+    // Set point filtering (no interpolation for pixel-perfect rendering)
+    SetTextureFilter(surf.texture, TEXTURE_FILTER_POINT);
+
+    // CUDA: Register
     surf._cuda_res = rlc_backend_register(surf.texture.id);
+    if (surf._cuda_res == NULL)
+    {
+        TraceLog(LOG_ERROR, "RLC: Failed to register texture with CUDA");
+        UnloadTexture(surf.texture);
+        rlc_set_error(RLC_ERROR_REGISTER_FAILED);
+        memset(&surf, 0, sizeof(surf));
+        return surf;
+    }
+
+    TraceLog(LOG_INFO, "RLC: Created surface %dx%d", width, height);
     return surf;
 }
 
-void RLC_UnloadSurface(RLC_Surface *surface) {
-    if (surface->_cuda_res)
+void RLC_UnloadSurface(RLC_Surface *surface)
+{
+    if (surface == NULL)
+    {
+        return;
+    }
+
+    // End access if still mapped
+    if (surface->_is_mapped)
+    {
+        TraceLog(LOG_WARNING,
+                 "RLC: Surface was still mapped during unload - unmapping");
+        RLC_EndAccess(surface);
+    }
+
+    // Unregister from CUDA
+    if (surface->_cuda_res != NULL)
+    {
         rlc_backend_unregister(surface->_cuda_res);
-    UnloadTexture(surface->texture);
+        surface->_cuda_res = NULL;
+    }
+
+    // Unload raylib texture
+    if (surface->texture.id != 0)
+    {
+        UnloadTexture(surface->texture);
+    }
+
+    // Clear the sturct
+    memset(surface, 0, sizeof(*surface));
+
+    TraceLog(LOG_DEBUG, "RLC: Surface unloaded");
 }
 
-unsigned long long RLC_BeginAccess(RLC_Surface *surface) {
-    if (!surface->_cuda_res)
+// ===============================================================
+// Execution Pipeline
+// ===============================================================
+
+unsigned long long RLC_BeginAccess(RLC_Surface *surface)
+{
+    if (surface == NULL)
+    {
+        rlc_set_error(RLC_ERROR_NULL_SURFACE);
         return 0;
+    }
+
+    if (surface->_cuda_res == NULL)
+    {
+        rlc_set_error(RLC_ERROR_NULL_SURFACE);
+        TraceLog(LOG_ERROR, "RLC: BeginAccess on invalid surface");
+        return 0;
+    }
+
+    if (surface->_is_mapped)
+    {
+        rlc_set_error(RLC_ERROR_ALREADY_MAPPED);
+        TraceLog(LOG_WARNING,
+                 "RLC: Surface already mapped - returning existing handle");
+        return surface->_surf_obj;
+    }
+
     surface->_surf_obj = rlc_backend_map(surface->_cuda_res);
+
+    if (surface->_surf_obj == 0)
+    {
+        rlc_set_error(RLC_ERROR_MAP_FAILED);
+        TraceLog(LOG_ERROR, "RLC: Failed to map surface");
+        return 0;
+    }
+    surface->_is_mapped = true;
     return surface->_surf_obj;
 }
 
-void RLC_EndAccess(RLC_Surface *surface) {
-    if (!surface->_cuda_res)
+void RLC_EndAccess(RLC_Surface *surface)
+{
+    if (surface == NULL)
+    {
         return;
+    }
+
+    if (surface->_cuda_res == NULL)
+    {
+        return;
+    }
+
+    if (!surface->_cuda_res)
+    {
+        // Not an error - safe to call even if not mapped
+        return;
+    }
+
     rlc_backend_unmap(surface->_cuda_res, surface->_surf_obj);
     surface->_surf_obj = 0;
+    surface->_is_mapped = false;
+}
+
+bool RLC_IsMapped(const RLC_Surface *surface)
+{
+    if (surface != NULL)
+        return false;
+    return surface->_is_mapped;
 }
