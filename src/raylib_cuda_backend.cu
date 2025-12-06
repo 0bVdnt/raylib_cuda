@@ -216,7 +216,7 @@ extern "C"
         // Step 2: Get the mapped array
         cudaArray_t array = nullptr;
         err = cudaGraphicsSubResourceGetMappedArray(&array, resource, 0, 0);
-        if (!check_cuda_error(err, "cudaGraphicsSubResorceGetMappedArray"))
+        if (!check_cuda_error(err, "cudaGraphicsSubResourceGetMappedArray"))
         {
             // Must unmap before returning error
             cudaGraphicsUnmapResources(1, &resource, 0);
