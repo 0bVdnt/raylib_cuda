@@ -103,10 +103,20 @@ extern "C"
     // IMPORTANT: Must call RLC_EndAccess() before drawing with raylib
     unsigned long long RLC_BeginAccess(RLC_Surface *surface);
 
-    // Ends CUDA access and Synchronizes
+    // Ends CUDA access and Synchronizes GPU
+    // This is a BLOCKING call - CPU waits for GPU to complete all work
     // Must be called after RLC_BeginAccess() before using texture in with Raylib
     // Safe to call even if RLC_BeginAccess failed
     void RLC_EndAccess(RLC_Surface *surface);
+
+    // Ends CUDA access WITHOUT synchronization (advanced usage)
+    // WARNING: You must ensure GPU work is complete before drawing the texture
+    // Use cudaStreamSynchronize() or cudaEventSynchronize() manually
+    // Useful for overlapping CPU work with GPU rendering
+    void RLC_EndAccessAsync(RLC_Surface *surface);
+
+    // Explicitly synchronizes the GPU (call after RLC_EndAccessAsync when ready)
+    void RLC_Sync(void);
 
     // Returns true if surface is currently mapped for CUDA access
     bool RLC_IsMapped(const RLC_Surface *surface);
