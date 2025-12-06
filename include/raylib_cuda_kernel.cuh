@@ -2,7 +2,7 @@
 #define RAYLIB_CUDA_KERNEL_CUH
 
 /*
- * raylib_cuda_kernel.h
+ * raylib_cuda_kernel.cuh
  * Helper definitions for writing CUDA kernels with raylib_cuda
  * Include this in your .cu files
  */

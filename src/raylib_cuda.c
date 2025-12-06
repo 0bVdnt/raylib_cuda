@@ -91,6 +91,7 @@ bool RLC_InitCUDA(void)
         TraceLog(LOG_ERROR, "RLC: Window must be initialized before calling RLC_InitCUDA()");
         TraceLog(LOG_ERROR, "RLC: Call InitWindow() first, then call RLC_InitCUDA()");
         rlc_set_error(RLC_ERROR_INIT_FAILED);
+        return false;
     }
 
     // Check CUDA availability
@@ -205,7 +206,7 @@ RLC_Surface RLC_CreateSurface(int width, int height)
     return RLC_CreateSurfaceEx(width, height, RLC_FORMAT_RGBA8);
 }
 
-RLC_Surface RLC_CreateSurface(int width, int height)
+RLC_Surface RLC_CreateSurfaceEx(int width, int height, RLC_Format format)
 {
     RLC_Surface surf = {0};
 
@@ -239,7 +240,7 @@ RLC_Surface RLC_CreateSurface(int width, int height)
     Image img = {0};
     img.width = width;
     img.height = height;
-    img.minmaps = 1;
+    img.mipmaps = 1;
     img.format = raylib_format;
 
     // Allocate and zero the pixel data

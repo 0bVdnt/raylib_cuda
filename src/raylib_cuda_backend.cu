@@ -239,6 +239,16 @@ extern "C"
 
         return static_cast<unsigned long long>(surfObj);
     }
+
+    // Synchronize GPU
+    void rlc_backend_sync(void)
+    {
+        cudaError_t err = cudaDeviceSynchronize();
+        if (!check_cuda_error(err, "cudaDeviceSynchronize"))
+        {
+            // Log but continue
+        }
+    }
     
     // Unmap a resource and destroy its surface object
     // sync: if true, calls cudaDeviceSynchronize after unmapping
@@ -273,16 +283,6 @@ extern "C"
         }
     }
     
-    // Synchronize GPU
-    void rlc_backend_sync(void)
-    {
-        cudaError_t err = cudaDeviceSynchronize();
-        if (!check_cuda_error(err, "cudaDeviceSynchronize"))
-        {
-            // Log but continue
-        }
-    }
-
     // Reset CUDA Device
     void rlc_backend_reset(void)
     {
