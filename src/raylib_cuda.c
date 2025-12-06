@@ -17,7 +17,8 @@ extern int rlc_backend_check();
 extern void *rlc_backend_register(unsigned int id);
 extern void rlc_backend_unregister(void *res);
 extern unsigned long long rlc_backend_map(void *res);
-extern void rlc_backend_unmap(void *res, unsigned long long surf);
+extern void rlc_backend_unmap(void *res, unsigned long long surf, bool sync);
+extern void rlc_backend_sync(void);
 extern void rlc_backend_reset(void);
 
 // ===============================================================
@@ -299,12 +300,24 @@ unsigned long long RLC_BeginAccess(RLC_Surface *surface)
 
 void RLC_EndAccess(RLC_Surface *surface)
 {
-    if (surface == NULL)
+    if (surface == NULL || surface->_cuda_res == NULL)
     {
         return;
     }
 
-    if (surface->_cuda_res == NULL)
+    if (!surface->_cuda_res)
+    {
+        // Not an error - safe to call even if not mapped
+        return;
+    }
+
+    rlc_backend_unmap(surface->_cuda_res, surface->_surf_obj, true); // sync = true
+    surface->_surf_obj = 0;
+    surface->_is_mapped = false;
+}
+
+void RLC_EndAccessAsync(RLC_Surface * RLC_Surface) {
+        if (surface == NULL || surface->_cuda_res == NULL)
     {
         return;
     }
@@ -315,9 +328,13 @@ void RLC_EndAccess(RLC_Surface *surface)
         return;
     }
 
-    rlc_backend_unmap(surface->_cuda_res, surface->_surf_obj);
+    rlc_backend_unmap(surface->_cuda_res, surface->_surf_obj, false); // sync = false
     surface->_surf_obj = 0;
     surface->_is_mapped = false;
+}
+
+void RLC_Sync(void) {
+    rlc_backend_sync();
 }
 
 bool RLC_IsMapped(const RLC_Surface *surface)
