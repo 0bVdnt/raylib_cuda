@@ -249,7 +249,7 @@ extern "C"
             // Log but continue
         }
     }
-    
+
     // Unmap a resource and destroy its surface object
     // sync: if true, calls cudaDeviceSynchronize after unmapping
     void rlc_backend_unmap(void *res, unsigned long long surfaceObject, bool sync)
@@ -258,7 +258,7 @@ extern "C"
         {
             return;
         }
-        
+
         if (surfaceObject != 0)
         {
             cudaSurfaceObject_t surfObj = static_cast<cudaSurfaceObject_t>(surfaceObject);
@@ -268,7 +268,7 @@ extern "C"
                 // Continue anyway to unmap the resource
             }
         }
-        
+
         // Unmap the graphics resource
         cudaGraphicsResource_t resource = static_cast<cudaGraphicsResource_t>(res);
         cudaError_t err = cudaGraphicsUnmapResources(1, &resource, 0);
@@ -276,13 +276,13 @@ extern "C"
         {
             // Log but continue
         }
-        
+
         if (sync)
         {
             rlc_backend_sync();
         }
     }
-    
+
     // Reset CUDA Device
     void rlc_backend_reset(void)
     {

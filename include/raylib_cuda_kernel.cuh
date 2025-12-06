@@ -48,12 +48,14 @@ __device__ inline uchar4 rlcReadPixel(cudaSurfaceObject_t surf, int x, int y)
 // =====================================================
 
 // Write a single float value
-__device__ inline void rlcWriteFloat(cudaSurfaceObject_t surf, int x, int y, float value) {
+__device__ inline void rlcWriteFloat(cudaSurfaceObject_t surf, int x, int y, float value)
+{
     surf2Dwrite(value, surf, x * sizeof(float), y);
 }
 
 // Read a single float value
-__device__ inline float rlcReadFloat(cudaSurfaceObject_t surf, int x, int y) {
+__device__ inline float rlcReadFloat(cudaSurfaceObject_t surf, int x, int y)
+{
     float value;
     surf2Dread(&value, surf, x * sizeof(float), y);
     return value;
@@ -63,13 +65,15 @@ __device__ inline float rlcReadFloat(cudaSurfaceObject_t surf, int x, int y) {
 // =====================================================
 
 // Write 4 float values
-__device__ inline void rlcWriteFloat4(cudaSurfaceObject_t surf, int x, int y, float r, float g, float b, float a = 1.0f) {
+__device__ inline void rlcWriteFloat4(cudaSurfaceObject_t surf, int x, int y, float r, float g, float b, float a = 1.0f)
+{
     float4 pixel = make_float4(r, g, b, a);
     surf2Dwrite(pixel, surf, x * sizeof(float4), y);
 }
 
 // Read 4 float values
-__device__ inline float4 rlcReadFloat4(cudaSurfaceObject_t surf, int x, int y) {
+__device__ inline float4 rlcReadFloat4(cudaSurfaceObject_t surf, int x, int y)
+{
     float4 pixel;
     surf2Dread(&pixel, surf, x * sizeof(float4), y);
     return pixel;
@@ -79,12 +83,15 @@ __device__ inline float4 rlcReadFloat4(cudaSurfaceObject_t surf, int x, int y) {
 // Bounds-Checked Variants (Optional safety)
 // =====================================================
 
-__device__ inline bool rlcInBounds(int x, int y, int width, int height) {
+__device__ inline bool rlcInBounds(int x, int y, int width, int height)
+{
     return (x >= 0 && x < width && y >= 0 && y < height);
 }
 
-__device__ inline void rlcWritePixelSafe(cudaSurfaceObject_t surf, int x, int y, int width, int height, unsigned char r, unsigned char g, unsigned char b, unsigned char a = 255) {
-    if (rlcInBounds(x, y, width, height)) {
+__device__ inline void rlcWritePixelSafe(cudaSurfaceObject_t surf, int x, int y, int width, int height, unsigned char r, unsigned char g, unsigned char b, unsigned char a = 255)
+{
+    if (rlcInBounds(x, y, width, height))
+    {
         rlcWritePixel(surf, x, y, r, g, b, a);
     }
 }

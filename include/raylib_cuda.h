@@ -15,7 +15,7 @@ extern "C"
     // =================================================================================
 
 #define RLC_VERSION_MAJOR 1
-#define RLC_VERSION_MINOR 0
+#define RLC_VERSION_MINOR 1
 #define RLC_VERSION_PATCH 0
 
 // Pixel format: RGBA8 (4 Bytes per pixel)
@@ -46,10 +46,11 @@ extern "C"
     // 3. Data Types
     // =================================================================================
 
-    typedef enum RLC_Format {
-        RLC_FORMAT_RGBA8,   // 4 bytes/pixel, use make_uchar4(r, g, b, a)
-        RLC_FORMAT_R32F,    // 4 bytes/pixel, single float (heightmaps, simulations)
-        RLC_FORMAT_RGBA32F  // 16 bytes/pixel, 4 floats (HDR, Physics buffers)
+    typedef enum RLC_Format
+    {
+        RLC_FORMAT_RGBA8,  // 4 bytes/pixel, use make_uchar4(r, g, b, a)
+        RLC_FORMAT_R32F,   // 4 bytes/pixel, single float (heightmaps, simulations)
+        RLC_FORMAT_RGBA32F // 16 bytes/pixel, 4 floats (HDR, Physics buffers)
     } RLC_Format;
 
     // A Wrapper around a raylib texture + CUDA Resource
@@ -65,7 +66,7 @@ extern "C"
         void *_cuda_res;              // CUDA Graphics resource handle
         unsigned long long _surf_obj; // CUDA surface object (valid only when mapped)
         bool _is_mapped;
-        int _bytes_per_pixel;         // Cached for convenience 
+        int _bytes_per_pixel; // Cached for convenience
     } RLC_Surface;
 
     // =================================================================================
