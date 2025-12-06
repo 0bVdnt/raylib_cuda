@@ -18,6 +18,7 @@ extern void *rlc_backend_register(unsigned int id);
 extern void rlc_backend_unregister(void *res);
 extern unsigned long long rlc_backend_map(void *res);
 extern void rlc_backend_unmap(void *res, unsigned long long surf);
+extern void rlc_backend_reset(void);
 
 // ===============================================================
 // Global State
@@ -75,6 +76,47 @@ const char *RLC_ErrorString(RLC_Error error)
 // Library Management
 // ===============================================================
 
+bool RLC_InitCUDA(void)
+{
+    g_last_error = RLC_OK;
+
+    // Verify window is already created
+    if (!IsWindowReady())
+    {
+        TraceLog(LOG_ERROR, "RLC: Window must be initialized before calling RLC_InitCUDA()");
+        TraceLog(LOG_ERROR, "RLC: Call InitWindow() first, then call RLC_InitCUDA()");
+        rlc_set_error(RLC_ERROR_INIT_FAILED);
+    }
+
+    // Check CUDA availability
+    int result = rlc_backend_check();
+    if (result != 0)
+    {
+        if (result == 1)
+        {
+            rlc_set_error(RLC_ERROR_NO_CUDA_DEVICE);
+            TraceLog(LOG_ERROR, "RLC: No CUDA device found");
+        }
+        else if (result == 2)
+        {
+            rlc_set_error(RLC_ERROR_WRONG_GPU);
+            TraceLog(LOG_ERROR, "RLC: Intel GPU detected - need discrete NVIDIA GPU");
+        }
+        return false;
+    }
+    TraceLog(LOG_INFO, "RLC: Raylib-CUDA v%d.%d.%d initialized successfully",
+             RLC_VERSION_MAJOR, RLC_VERSION_MINOR, RLC_VERSION_PATCH);
+    return true;
+}
+
+void RLC_CloseCUDA(void)
+{
+    // Reset CUDA device (cleans up any remaining resources)
+    rlc_backend_reset();
+    TraceLog(LOG_INFO, "RLC: CUDA shutdown complete");
+}
+
+// DEPRECATED - Kept for backward compatibility
 bool RLC_Init(int width, int height, const char *title)
 {
     g_last_error = RLC_OK;
