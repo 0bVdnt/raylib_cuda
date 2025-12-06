@@ -79,7 +79,7 @@ extern "C"
         }
         if (vendor)
         {
-            RLC_BACKEND_LOG("OpenGL Renderer: %s", vendor);
+            RLC_BACKEND_LOG("OpenGL Vendor: %s", vendor);
         }
 
         // Check for Intel Integrated GPU (Common on laptops)
@@ -198,7 +198,7 @@ extern "C"
         // Step 2: Get the mapped array
         cudaArray_t array = nullptr;
         err = cudaGraphicsSubResourceGetMappedArray(&array, resource, 0, 0);
-        if (!check_cuda_error(err, "cudaGraphicsSubResorceGetMappedArray"))
+        if (!check_cuda_error(err, "cudaGraphicsSubResourceGetMappedArray"))
         {
             // Must unmap before returning error
             cudaGraphicsUnmapResources(1, &resource, 0);

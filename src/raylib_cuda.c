@@ -261,9 +261,9 @@ void RLC_EndAccess(RLC_Surface *surface)
         return;
     }
 
-    if (!surface->_cuda_res)
+    if (!surface->_is_mapped)
     {
-        // Not an error - safe to call even if not mapped
+        // Idempotent - Safe to call multiple times
         return;
     }
 
@@ -274,7 +274,7 @@ void RLC_EndAccess(RLC_Surface *surface)
 
 bool RLC_IsMapped(const RLC_Surface *surface)
 {
-    if (surface != NULL)
+    if (surface == NULL)
         return false;
     return surface->_is_mapped;
 }
