@@ -316,7 +316,7 @@ void RLC_EndAccess(RLC_Surface *surface)
     surface->_is_mapped = false;
 }
 
-void RLC_EndAccessAsync(RLC_Surface * RLC_Surface) {
+void RLC_EndAccessAsync(RLC_Surface * surface) {
         if (surface == NULL || surface->_cuda_res == NULL)
     {
         return;
