@@ -54,6 +54,8 @@ const char *RLC_ErrorString(RLC_Error error)
         return "No CUDA device found";
     case RLC_ERROR_WRONG_GPU:
         return "Wrong GPU (Intel Integrated) Detected";
+    case RLC_ERROR_INIT_FAILED:
+        return "Initialization failed";
     case RLC_ERROR_REGISTER_FAILED:
         return "Failed to register texture with CUDA";
     case RLC_ERROR_MAP_FAILED:
@@ -261,9 +263,9 @@ void RLC_EndAccess(RLC_Surface *surface)
         return;
     }
 
-    if (!surface->_cuda_res)
+    if (!surface->_is_mapped)
     {
-        // Not an error - safe to call even if not mapped
+        // Idempotent - Safe to call multiple times
         return;
     }
 
@@ -274,7 +276,7 @@ void RLC_EndAccess(RLC_Surface *surface)
 
 bool RLC_IsMapped(const RLC_Surface *surface)
 {
-    if (surface != NULL)
+    if (surface == NULL)
         return false;
     return surface->_is_mapped;
 }
