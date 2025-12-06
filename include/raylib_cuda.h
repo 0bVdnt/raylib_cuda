@@ -10,9 +10,9 @@ extern "C"
 {
 #endif
 
-    // =====================================================
+    // =================================================================================
     // 1. Versions and constants
-    // =====================================================
+    // =================================================================================
 
 #define RLC_VERSION_MAJOR 1
 #define RLC_VERSION_MINOR 0
@@ -23,15 +23,16 @@ extern "C"
 // surf2DWrite(make_uchar4(r, g, b, a), surfObj, x * 4, y);
 #define RLC_BYTES_PER_PIXEL 4
 
-    // =====================================================
+    // =================================================================================
     // 2. Error Codes
-    // =====================================================
+    // =================================================================================
 
     typedef enum RLC_ERROR
     {
         RLC_OK = 0,
         RLC_ERROR_NO_CUDA_DEVICE,
         RLC_ERROR_WRONG_GPU,
+        RLC_ERROR_INIT_FAILED,
         RLC_ERROR_REGISTER_FAILED,
         RLC_ERROR_MAP_FAILED,
         RLC_ERROR_NOT_MAPPED,
@@ -39,9 +40,9 @@ extern "C"
         RLC_ERROR_NULL_SURFACE
     } RLC_Error;
 
-    // =====================================================
+    // =================================================================================
     // 3. Data Types
-    // =====================================================
+    // =================================================================================
 
     // A Wrapper around a raylib texture + CUDA Resource
     // Note: Fields prefixed with '_' are internal - do not modify directly.
@@ -57,16 +58,27 @@ extern "C"
         bool _is_mapped;
     } RLC_Surface;
 
-    // =====================================================
+    // =================================================================================
     // 4. Library Management
-    // =====================================================
+    // =================================================================================
 
-    // Initializes CUDA and Raylib Window
-    // Return true on success, false if no compatible CUDA GPU is found
-    // On failure, the window is NOT left open
+    // [DEPRECATED] Initializes CUDA and Raylib Window together
+    // Use RLC_InitCUDA() instead for more control over window configuration
+    // This function will be removed in v2.0
     bool RLC_Init(int width, int height, const char *title);
 
-    // Closes window and cleans up all resources
+    // Initialize CUDA context only
+    // Call this AFTER InitWindow() to allow raylib configuration
+    // Returns true on success, false if no CUDA Compatible GPU is found
+    // Usage:
+    //  SetConfigFlags(FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT);
+    //  if (!RLC_InitCUDA()) { CloseWindow(); return 1;}
+    bool RLC_InitCUDA();
+
+    // Closes CUDA resources (can call before CloseWindow if using RLC_InitCUDA)
+    void RLC_CloseCUDA();
+
+    // Closes window and cleans up all resources (for use with RLC_Init)
     void RLC_Close();
 
     // Return the last error code
@@ -75,9 +87,9 @@ extern "C"
     // Return a human-readable error message for the given error code
     const char *RLC_ErrorString(RLC_Error error);
 
-    // =====================================================
+    // =================================================================================
     // 5. Surface Management
-    // =====================================================
+    // =================================================================================
 
     // Creates a surface for CUDA rendering
     // Returns a surface with _cuda_res set to NULL on failure
@@ -88,9 +100,9 @@ extern "C"
     // Safe to call with NULL or already-freed surface
     void RLC_UnloadSurface(RLC_Surface *surface);
 
-    // =====================================================
+    // =================================================================================
     // 6. Execution Pipeline
-    // =====================================================
+    // =================================================================================
 
     // Begins CUDA access to the surface
     // Returns a cudaSurfaceObject_t (as unsigned long long) for use in the kernels

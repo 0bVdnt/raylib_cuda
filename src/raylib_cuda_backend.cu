@@ -255,4 +255,14 @@ extern "C"
             // Log but continue
         }
     }
+
+    // Reset CUDA Device
+    void rlc_backend_reset(void)
+    {
+        cudaError_t err = cudaDeviceReset();
+        if (err != cudaSuccess)
+        {
+            RLC_BACKEND_LOG("cudaDeviceReset warning: %s", cudaGetErrorString(err));
+        }
+    }
 } // extern "C"
