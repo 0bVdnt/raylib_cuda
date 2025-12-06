@@ -170,6 +170,41 @@ void RLC_Close()
 // Surface Management
 // ===============================================================
 
+int RLC_GetBytesPerPixel(RLC_Format format)
+{
+    switch (format)
+    {
+    case RLC_FORMAT_RGBA8:
+        return 4;
+    case RLC_FORMAT_R32F:
+        return 4;
+    case RLC_FORMAT_RGBA32F:
+        return 16;
+    default:
+        return 4;
+    }
+}
+
+static int rlc_format_to_raylib(RLC_Format format)
+{
+    switch (format)
+    {
+    case RLC_FORMAT_RGBA8:
+        return PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    case RLC_FORMAT_R32F:
+        return PIXELFORMAT_UNCOMPRESSED_R32;
+    case RLC_FORMAT_RGBA32F:
+        return PIXELFORMAT_UNCOMPRESSED_R32G32B32A32;
+    default:
+        return PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    }
+}
+
+RLC_Surface RLC_CreateSurface(int width, int height)
+{
+    return RLC_CreateSurfaceEx(width, height, RLC_FORMAT_RGBA8);
+}
+
 RLC_Surface RLC_CreateSurface(int width, int height)
 {
     RLC_Surface surf = {0};
@@ -183,16 +218,37 @@ RLC_Surface RLC_CreateSurface(int width, int height)
         return surf;
     }
 
+    // Validate format
+    if (format < RLC_FORMAT_RGBA8 || format > RLC_FORMAT_RGBA32F)
+    {
+        TraceLog(LOG_ERROR, "RLC: Invalid surface format: %d", format);
+        rlc_set_error(RLC_ERROR_UNSUPPORTED_FORMAT);
+        return surf;
+    }
+
     surf.width = width;
     surf.height = height;
+    surf.format = format;
     surf._is_mapped = false;
     surf._surf_obj = 0;
+    surf._bytes_per_pixel = RLC_GetBytesPerPixel(format);
 
-    // Raylib: Create texture
-    Image img = GenImageColor(width, height, BLACK);
+    // Create image with appropriate format
+    int raylib_format = rlc_format_to_raylib(format);
+
+    Image img = {0};
+    img.width = width;
+    img.height = height;
+    img.minmaps = 1;
+    img.format = raylib_format;
+
+    // Allocate and zero the pixel data
+    size_t data_size = (size_t)width * height * surf._bytes_per_pixel;
+    img.data = RL_CALLOC(data_size, 1);
+
     if (img.data == NULL)
     {
-        TraceLog(LOG_ERROR, "RLC: Failed to generate image");
+        TraceLog(LOG_ERROR, "RLC: Failed to allocate image data");
         rlc_set_error(RLC_ERROR_REGISTER_FAILED);
         return surf;
     }
@@ -202,7 +258,7 @@ RLC_Surface RLC_CreateSurface(int width, int height)
 
     if (surf.texture.id == 0)
     {
-        TraceLog(LOG_ERROR, "RLC: Failed to create a texture");
+        TraceLog(LOG_ERROR, "RLC: Failed to create texture");
         rlc_set_error(RLC_ERROR_REGISTER_FAILED);
         return surf;
     }
@@ -221,7 +277,7 @@ RLC_Surface RLC_CreateSurface(int width, int height)
         return surf;
     }
 
-    TraceLog(LOG_INFO, "RLC: Created surface %dx%d", width, height);
+    TraceLog(LOG_INFO, "RLC: Created surface %dx%d (format=%d, bpp=%d)", width, height, format, surf._bytes_per_pixel);
     return surf;
 }
 

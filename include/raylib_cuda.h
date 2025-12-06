@@ -46,6 +46,12 @@ extern "C"
     // 3. Data Types
     // =================================================================================
 
+    typedef enum RLC_Format {
+        RLC_FORMAT_RGBA8,   // 4 bytes/pixel, use make_uchar4(r, g, b, a)
+        RLC_FORMAT_R32F,    // 4 bytes/pixel, single float (heightmaps, simulations)
+        RLC_FORMAT_RGBA32F  // 16 bytes/pixel, 4 floats (HDR, Physics buffers)
+    } RLC_Format;
+
     // A Wrapper around a raylib texture + CUDA Resource
     // Note: Fields prefixed with '_' are internal - do not modify directly.
     typedef struct RLC_Surface
@@ -53,11 +59,13 @@ extern "C"
         Texture2D texture; // Raylib texture for drawing
         int width;         // Surface width in pixels
         int height;        // Surface height in pixels
+        RLC_Format format; // Track the format
 
         // Internal Fields (Do not modify)
         void *_cuda_res;              // CUDA Graphics resource handle
         unsigned long long _surf_obj; // CUDA surface object (valid only when mapped)
         bool _is_mapped;
+        int _bytes_per_pixel;         // Cached for convenience 
     } RLC_Surface;
 
     // =================================================================================
@@ -93,10 +101,16 @@ extern "C"
     // 5. Surface Management
     // =================================================================================
 
-    // Creates a surface for CUDA rendering
+    // Creates a surface for CUDA rendering with RGBA8 format (default)
     // Returns a surface with _cuda_res set to NULL on failure
     // Checks with: if(surface._cuda_res == NULL) {/* handle error */}
     RLC_Surface RLC_CreateSurface(int width, int height);
+
+    // Creates a surface with specified format
+    RLC_Surface RLC_CreateSurfaceEx(int width, int height, RLC_Format format);
+
+    // Returns bytes per pixel for a format
+    int RLC_GetBytesPerPixel(RLC_Format format);
 
     // Frees the surface and associated resources
     // Safe to call with NULL or already-freed surface
