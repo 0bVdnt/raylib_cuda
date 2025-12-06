@@ -69,7 +69,7 @@ extern "C"
     // Returns: 0 for success, 1 for No CUDA and 2 for Wrong GPU
     int rlc_backend_check(void)
     {
-        // Check for the OpenGL renderer
+        // Log OpenGL renderer info
         const char *renderer = (const char *)glGetString(GL_RENDERER);
         const char *vendor = (const char *)glGetString(GL_VENDOR);
 
@@ -79,7 +79,7 @@ extern "C"
         }
         if (vendor)
         {
-            RLC_BACKEND_LOG("OpenGL Renderer: %s", vendor);
+            RLC_BACKEND_LOG("OpenGL Vendor: %s", vendor);
         }
 
         // Check for Intel Integrated GPU (Common on laptops)
@@ -88,7 +88,12 @@ extern "C"
         {
             RLC_BACKEND_ERROR("Intel GPU detected (%s)", renderer);
             RLC_BACKEND_ERROR("Please ensure your system uses the NVIDIA GPU for this application");
+#ifdef RLC_PLATFORM_WINDOWS
             RLC_BACKEND_ERROR("On Windows: Right-click the exe -> Run with graphics processor -> NVIDIA");
+            RLC_BACKEND_ERROR("Or set in NVIDIA Control Panel -> Manage 3D Settings -> Program Settings");
+#elif defined(RLC_PLATFORM_LINUX)
+            RLC_BACKEND_ERROR("On Linux: Run with __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia");
+#endif
             return 2; // Error: Wrong GPU
         }
 
@@ -112,8 +117,9 @@ extern "C"
         {
             cudaDeviceProp prop;
             cudaGetDeviceProperties(&prop, i);
-            RLC_BACKEND_LOG("CUDA Device %d: %s(Compute %d.%d)",
-                            i, prop.name, prop.major, prop.minor);
+            RLC_BACKEND_LOG("CUDA Device %d: %s(Compute %d.%d, %zu MB)",
+                            i, prop.name, prop.major, prop.minor,
+                            prop.totalGlobalMem / (1024 * 1024));
         }
 
         // Set device 0 as active device
@@ -123,12 +129,12 @@ extern "C"
             return 1;
         }
 
-        // Enable GL interop on this device
-        err = cudaGLSetGLDevice(0);
-        if (err != cudaSuccess && err != cudaErrorSetOnActiveProcess)
+        // NOTE: cudaSetGLDevice is deprecated since CUDA 5.0
+        // Modern CUDA handles GL interop context automatically
+        // Just ensure we can create a test context
+        err = cudaFree(0); // Lazy context initialization
+        if (!check_cuda_error(err, "cudaFree(0) - context init"))
         {
-            // cudaErrorSetOnActiveProcess means that the device is already set on the current process, this is fine
-            RLC_BACKEND_ERROR("cudaGLSetGLDevice failed: %s", cudaGetErrorString(err));
             return 1;
         }
 

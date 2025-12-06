@@ -53,7 +53,13 @@ const char *RLC_ErrorString(RLC_Error error)
     case RLC_ERROR_NO_CUDA_DEVICE:
         return "No CUDA device found";
     case RLC_ERROR_WRONG_GPU:
-        return "Wrong GPU (Intel Integrated) Detected";
+        return "Wrong GPU (Intel Integrated) Detected - need discrete NVIDIA GPU";
+    case RLC_ERROR_INIT_FAILED:
+        return "Initialize failed";
+    case RLC_ERROR_INVALID_ARGUMENT:
+        return "Invalid argument";
+    case RLC_ERROR_UNSUPPORTED_FORMAT:
+        return "Unsupported surface format";
     case RLC_ERROR_REGISTER_FAILED:
         return "Failed to register texture with CUDA";
     case RLC_ERROR_MAP_FAILED:
