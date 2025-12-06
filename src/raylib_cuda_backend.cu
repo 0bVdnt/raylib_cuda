@@ -4,6 +4,12 @@
  * Handles platform-specific GPU operations
  */
 
+#ifndef RLC_SKIP_GL_SYNC
+#define RLC_DO_GL_SYNC 1
+#else
+#define RLC_DO_GL_SYNC 0
+#endif
+
 // Platform detection
 #ifdef _WIN32
 #define RLC_PLATFORM_WINDOWS
@@ -193,6 +199,12 @@ extern "C"
 
         cudaGraphicsResource_t resource = static_cast<cudaGraphicsResource_t>(res);
         cudaError_t err;
+
+// Ensure OpenGL has finished all pending operations
+// This prevents race conditions between GL and CUDA
+#if RLC_DO_GL_SYNC
+        glFinish();
+#endif
 
         // Step 1: Map the graphics resource
         err = cudaGraphicsMapResources(1, &resource, 0);
