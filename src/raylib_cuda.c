@@ -252,7 +252,7 @@ void RLC_UnloadSurface(RLC_Surface *surface)
         UnloadTexture(surface->texture);
     }
 
-    // Clear the sturct
+    // Clear the struct
     memset(surface, 0, sizeof(*surface));
 
     TraceLog(LOG_DEBUG, "RLC: Surface unloaded");
