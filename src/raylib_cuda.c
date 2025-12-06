@@ -17,7 +17,9 @@ extern int rlc_backend_check();
 extern void *rlc_backend_register(unsigned int id);
 extern void rlc_backend_unregister(void *res);
 extern unsigned long long rlc_backend_map(void *res);
-extern void rlc_backend_unmap(void *res, unsigned long long surf);
+extern void rlc_backend_unmap(void *res, unsigned long long surf, bool sync);
+extern void rlc_backend_sync(void);
+extern void rlc_backend_reset(void);
 
 // ===============================================================
 // Global State
@@ -53,7 +55,13 @@ const char *RLC_ErrorString(RLC_Error error)
     case RLC_ERROR_NO_CUDA_DEVICE:
         return "No CUDA device found";
     case RLC_ERROR_WRONG_GPU:
-        return "Wrong GPU (Intel Integrated) Detected";
+        return "Wrong GPU (Intel Integrated) Detected - need discrete NVIDIA GPU";
+    case RLC_ERROR_INIT_FAILED:
+        return "Initialize failed";
+    case RLC_ERROR_INVALID_ARGUMENT:
+        return "Invalid argument";
+    case RLC_ERROR_UNSUPPORTED_FORMAT:
+        return "Unsupported surface format";
     case RLC_ERROR_REGISTER_FAILED:
         return "Failed to register texture with CUDA";
     case RLC_ERROR_MAP_FAILED:
@@ -73,6 +81,48 @@ const char *RLC_ErrorString(RLC_Error error)
 // Library Management
 // ===============================================================
 
+bool RLC_InitCUDA(void)
+{
+    g_last_error = RLC_OK;
+
+    // Verify window is already created
+    if (!IsWindowReady())
+    {
+        TraceLog(LOG_ERROR, "RLC: Window must be initialized before calling RLC_InitCUDA()");
+        TraceLog(LOG_ERROR, "RLC: Call InitWindow() first, then call RLC_InitCUDA()");
+        rlc_set_error(RLC_ERROR_INIT_FAILED);
+        return false;
+    }
+
+    // Check CUDA availability
+    int result = rlc_backend_check();
+    if (result != 0)
+    {
+        if (result == 1)
+        {
+            rlc_set_error(RLC_ERROR_NO_CUDA_DEVICE);
+            TraceLog(LOG_ERROR, "RLC: No CUDA device found");
+        }
+        else if (result == 2)
+        {
+            rlc_set_error(RLC_ERROR_WRONG_GPU);
+            TraceLog(LOG_ERROR, "RLC: Intel GPU detected - need discrete NVIDIA GPU");
+        }
+        return false;
+    }
+    TraceLog(LOG_INFO, "RLC: Raylib-CUDA v%d.%d.%d initialized successfully",
+             RLC_VERSION_MAJOR, RLC_VERSION_MINOR, RLC_VERSION_PATCH);
+    return true;
+}
+
+void RLC_CloseCUDA(void)
+{
+    // Reset CUDA device (cleans up any remaining resources)
+    rlc_backend_reset();
+    TraceLog(LOG_INFO, "RLC: CUDA shutdown complete");
+}
+
+// DEPRECATED - Kept for backward compatibility
 bool RLC_Init(int width, int height, const char *title)
 {
     g_last_error = RLC_OK;
@@ -121,7 +171,42 @@ void RLC_Close()
 // Surface Management
 // ===============================================================
 
+int RLC_GetBytesPerPixel(RLC_Format format)
+{
+    switch (format)
+    {
+    case RLC_FORMAT_RGBA8:
+        return 4;
+    case RLC_FORMAT_R32F:
+        return 4;
+    case RLC_FORMAT_RGBA32F:
+        return 16;
+    default:
+        return 4;
+    }
+}
+
+static int rlc_format_to_raylib(RLC_Format format)
+{
+    switch (format)
+    {
+    case RLC_FORMAT_RGBA8:
+        return PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    case RLC_FORMAT_R32F:
+        return PIXELFORMAT_UNCOMPRESSED_R32;
+    case RLC_FORMAT_RGBA32F:
+        return PIXELFORMAT_UNCOMPRESSED_R32G32B32A32;
+    default:
+        return PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    }
+}
+
 RLC_Surface RLC_CreateSurface(int width, int height)
+{
+    return RLC_CreateSurfaceEx(width, height, RLC_FORMAT_RGBA8);
+}
+
+RLC_Surface RLC_CreateSurfaceEx(int width, int height, RLC_Format format)
 {
     RLC_Surface surf = {0};
 
@@ -134,16 +219,37 @@ RLC_Surface RLC_CreateSurface(int width, int height)
         return surf;
     }
 
+    // Validate format
+    if (format < RLC_FORMAT_RGBA8 || format > RLC_FORMAT_RGBA32F)
+    {
+        TraceLog(LOG_ERROR, "RLC: Invalid surface format: %d", format);
+        rlc_set_error(RLC_ERROR_UNSUPPORTED_FORMAT);
+        return surf;
+    }
+
     surf.width = width;
     surf.height = height;
+    surf.format = format;
     surf._is_mapped = false;
     surf._surf_obj = 0;
+    surf._bytes_per_pixel = RLC_GetBytesPerPixel(format);
 
-    // Raylib: Create texture
-    Image img = GenImageColor(width, height, BLACK);
+    // Create image with appropriate format
+    int raylib_format = rlc_format_to_raylib(format);
+
+    Image img = {0};
+    img.width = width;
+    img.height = height;
+    img.mipmaps = 1;
+    img.format = raylib_format;
+
+    // Allocate and zero the pixel data
+    size_t data_size = (size_t)width * height * surf._bytes_per_pixel;
+    img.data = RL_CALLOC(data_size, 1);
+
     if (img.data == NULL)
     {
-        TraceLog(LOG_ERROR, "RLC: Failed to generate image");
+        TraceLog(LOG_ERROR, "RLC: Failed to allocate image data");
         rlc_set_error(RLC_ERROR_REGISTER_FAILED);
         return surf;
     }
@@ -153,7 +259,7 @@ RLC_Surface RLC_CreateSurface(int width, int height)
 
     if (surf.texture.id == 0)
     {
-        TraceLog(LOG_ERROR, "RLC: Failed to create a texture");
+        TraceLog(LOG_ERROR, "RLC: Failed to create texture");
         rlc_set_error(RLC_ERROR_REGISTER_FAILED);
         return surf;
     }
@@ -172,7 +278,7 @@ RLC_Surface RLC_CreateSurface(int width, int height)
         return surf;
     }
 
-    TraceLog(LOG_INFO, "RLC: Created surface %dx%d", width, height);
+    TraceLog(LOG_INFO, "RLC: Created surface %dx%d (format=%d, bpp=%d)", width, height, format, surf._bytes_per_pixel);
     return surf;
 }
 
@@ -204,7 +310,7 @@ void RLC_UnloadSurface(RLC_Surface *surface)
         UnloadTexture(surface->texture);
     }
 
-    // Clear the sturct
+    // Clear the struct
     memset(surface, 0, sizeof(*surface));
 
     TraceLog(LOG_DEBUG, "RLC: Surface unloaded");
@@ -251,12 +357,7 @@ unsigned long long RLC_BeginAccess(RLC_Surface *surface)
 
 void RLC_EndAccess(RLC_Surface *surface)
 {
-    if (surface == NULL)
-    {
-        return;
-    }
-
-    if (surface->_cuda_res == NULL)
+    if (surface == NULL || surface->_cuda_res == NULL)
     {
         return;
     }
@@ -267,9 +368,30 @@ void RLC_EndAccess(RLC_Surface *surface)
         return;
     }
 
-    rlc_backend_unmap(surface->_cuda_res, surface->_surf_obj);
+    rlc_backend_unmap(surface->_cuda_res, surface->_surf_obj, true); // sync = true
     surface->_surf_obj = 0;
     surface->_is_mapped = false;
+}
+
+void RLC_EndAccessAsync(RLC_Surface * surface) {
+        if (surface == NULL || surface->_cuda_res == NULL)
+    {
+        return;
+    }
+
+    if (!surface->_is_mapped)
+    {
+        // Idempotent - Safe to call multiple times
+        return;
+    }
+
+    rlc_backend_unmap(surface->_cuda_res, surface->_surf_obj, false); // sync = false
+    surface->_surf_obj = 0;
+    surface->_is_mapped = false;
+}
+
+void RLC_Sync(void) {
+    rlc_backend_sync();
 }
 
 bool RLC_IsMapped(const RLC_Surface *surface)

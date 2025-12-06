@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 
 project(raylib_cuda_lib
-    VERSION 1.0.0
+    VERSION 1.1.0
     DESCRIPTION "CUDA interop library for raylib"
     LANGUAGES C CXX CUDA
 )
@@ -39,8 +39,12 @@ endif()
 
 # If RAYLIB_DIR is provided: use that source tree
 # Otherwise: Automatically download and build raylib
-set (RAYLIB_DIR "" CACHE PATH
+set(RAYLIB_DIR "" CACHE PATH
     "Path to a local raylib source tree (with CMakeLists.txt). If empty, raylib will be fetched from GitHub."
+)
+
+set(RAYLIB_VERSION "5.5" CACHE STRING
+    "Raylib version to fetch from GitHub (ignored if RAYLIB_DIR is set)"
 )
 
 # raylib options: Don't build examples/games to boost the speed of raylib setup
@@ -52,6 +56,7 @@ if(RAYLIB_DIR)
     if(EXISTS "${RAYLIB_DIR}/CMakeLists.txt")
         message(STATUS "Using local raylib from: ${RAYLIB_DIR}")
         add_subdirectory("${RAYLIB_DIR}" raylib_build)
+        set(RAYLIB_IS_LOCAL TRUE)
     else()
         message(FATAL_ERROR
             "RAYLIB_DIR is set to '${RAYLIB_DIR}', but no CMakeLists.txt was found."
@@ -62,15 +67,16 @@ else()
     include(FetchContent)
     set(FETCHCONTENT_QUIET OFF)
     
-    message(STATUS "RAYLIB_DIR not set; fetching raylib from GitHub (master branch)...")
+    message(STATUS "RAYLIB_DIR not set; Fetching raylib ${RAYLIB_VERSION} from GitHub...")
 
     FetchContent_Declare(
         raylib
         GIT_REPOSITORY https://github.com/raysan5/raylib.git
-        GIT_TAG        master
+        GIT_TAG        ${RAYLIB_VERSION}
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(raylib)
+    set(RAYLIB_IS_FETCHED TRUE)
 endif()
 
 # ==================================================================
@@ -96,6 +102,12 @@ target_include_directories(
 # Link raylib (Handles OpenGL Linking)
 target_link_libraries(raylib_cuda PUBLIC raylib)
 
+# Handle static raylib on Windows
+get_target_property(RAYLIB_TYPE raylib TYPE)
+if(RAYLIB_TYPE STREQUAL "STATIC_LIBRARY")
+    target_compile_definitions(raylib_cuda PUBLIC RAYLIB_STATIC)
+endif()
+
 # Language standards
 set_target_properties(raylib_cuda PROPERTIES
     C_STANDARD 99
@@ -104,7 +116,6 @@ set_target_properties(raylib_cuda PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CUDA_STANDARD 11
     CUDA_STANDARD_REQUIRED ON
-    # Required if this static lib is linked into a shared lib
     POSITION_INDEPENDENT_CODE ON
 )
 
@@ -115,13 +126,11 @@ set_target_properties(raylib_cuda PROPERTIES
 if(WIN32)
     # Link OpenGL explicitly for CUDA-GL interop functions
     target_link_libraries(raylib_cuda PRIVATE opengl32)
-
 elseif(APPLE)
     message(WARNING "macOS support is experimental - CUDA may not work correctly")
     # macOS: Link OpenGL framework
     find_package(OpenGL REQUIRED)
     target_link_libraries(raylib_cuda PRIVATE OpenGL::GL)
-
 else()
     # Linux: Link OpenGL
     find_package(OpenGL REQUIRED)
@@ -137,7 +146,7 @@ if(RLC_BUILD_TESTS)
         message(STATUS "Building tests...")
         add_subdirectory(tests)
     else()
-        message(WARNING "RLC_BUILD_TESTS is ON but tests/ directory not found")
+        message(STATUS "RLC_BUILD_TESTS is ON but tests/ directory not found - skipping")
     endif()
 endif()
 
@@ -150,33 +159,39 @@ if(RLC_BUILD_EXAMPLES)
         message(STATUS "Building examples...")
         add_subdirectory(examples)
     else()
-        message(WARNING "RLC_BUILD_EXAMPLES is ON but examples/ directory not found")
+        message(STATUS "RLC_BUILD_EXAMPLES is ON but examples/ directory not found - skipping")
     endif()
 endif()
 
 # ==================================================================
-# Installation (Optional)
+# Installation
 # ==================================================================
 
 include(GNUInstallDirs)
 
+# Install library binary
 install(TARGETS raylib_cuda
-    EXPORT raylib_cuda-targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
+# Install headers
 install(
     DIRECTORY include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-install(EXPORT raylib_cuda-targets
-    FILE raylib_cuda-targets.cmake
-    NAMESPACE raylib_cuda::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/raylib_cuda
-)
+# Note: Export targets are not created because raylib is fetched/built locally.
+# Users should use add_subdirectory() or FetchContent to include raylib_cuda.
+# Example usage in consuming projects:
+#
+#   FetchContent_Declare(raylib_cuda
+#       GIT_REPOSITORY https://github.com/0bvdnt/raylib_cuda.git
+#       GIT_TAG v1.1.0
+#   )
+#   FetchContent_MakeAvailable(raylib_cuda)
+#   target_link_libraries(myapp PRIVATE raylib_cuda)
 
 # ==================================================================
 # Build Summary
@@ -188,6 +203,7 @@ message(STATUS "   Version:             ${PROJECT_VERSION}")
 message(STATUS "   CUDA Architectures:  ${CMAKE_CUDA_ARCHITECTURES}")
 message(STATUS "   Build Tests:         ${RLC_BUILD_TESTS}")
 message(STATUS "   Build Examples:      ${RLC_BUILD_EXAMPLES}")
+message(STATUS "   Raylib Version:      ${RAYLIB_VERSION}")
 message(STATUS "   Install Prefix:      ${CMAKE_INSTALL_PREFIX}")
 
 # Build type
@@ -196,7 +212,7 @@ if(IS_MULTI_CONFIG)
     message(STATUS "   Generator:           ${CMAKE_GENERATOR} (multi-config)")
     message(STATUS "   Available Configs:   Debug, Release, RelWithDebInfo, MinSizeRel")
 else()
-    if (NOT CMAKE_BUILD_TYPE)
+    if(NOT CMAKE_BUILD_TYPE)
         set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type" FORCE)
     endif()
     message(STATUS "   Generator:           ${CMAKE_GENERATOR}")

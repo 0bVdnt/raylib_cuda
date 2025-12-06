@@ -2,7 +2,7 @@
 #define RAYLIB_CUDA_KERNEL_CUH
 
 /*
- * raylib_cuda_kernel.h
+ * raylib_cuda_kernel.cuh
  * Helper definitions for writing CUDA kernels with raylib_cuda
  * Include this in your .cu files
  */
@@ -10,7 +10,7 @@
 #include <cuda_runtime.h>
 
 // =====================================================
-// Pixel Writing Helpers
+// RGBA8 Pixel Writing Helpers (4 bytes per pixel)
 // =====================================================
 
 // Write an RGBA pixel to a surface
@@ -30,8 +30,8 @@ __device__ inline void rlcWritePixelF(cudaSurfaceObject_t surf, int x, int y,
                                       float a = 1.0f)
 {
     uchar4 pixel =
-        make_uchar4((unsigned char)(r * 255.0f), (unsigned char)(g * 255.0f),
-                    (unsigned char)(b * 255.0f), (unsigned char)(a * 255.0f));
+        make_uchar4((unsigned char)(__saturatef(r) * 255.0f), (unsigned char)(__saturatef(g) * 255.0f),
+                    (unsigned char)(__saturatef(b) * 255.0f), (unsigned char)(__saturatef(a) * 255.0f));
     surf2Dwrite(pixel, surf, x * 4, y);
 }
 
@@ -44,36 +44,49 @@ __device__ inline uchar4 rlcReadPixel(cudaSurfaceObject_t surf, int x, int y)
 }
 
 // =====================================================
-// Common Kernel Pattern
+// R32F Pixel Writing Helpers (Single float, 4 bytes per pixel)
 // =====================================================
 
-/*
-Example kernel:
-
-__global__ void myKernel(cudaSurfaceObject_t surf, int width, int height)
-{
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (x >= width || y >= height) return;
-
-    // Calculate color
-    unsigned char r = (x * 255) / width;
-    unsigned char g = (y * 255) / height;
-    unsigned char b = 128;
-
-    rlcWritePixel(surf, x, y, r, g, b);
+// Write a single float value
+__device__ inline void rlcWriteFloat(cudaSurfaceObject_t surf, int x, int y, float value) {
+    surf2Dwrite(value, surf, x * sizeof(float), y);
 }
 
-Usage:
+// Read a single float value
+__device__ inline float rlcReadFloat(cudaSurfaceObject_t surf, int x, int y) {
+    float value;
+    surf2Dread(&value, surf, x * sizeof(float), y);
+    return value;
+}
+// =====================================================
+// RGBA32F Pixel Writing Helpers (4 floats, 16 bytes per pixel)
+// =====================================================
 
-    unsigned long long surfObj = RLC_BeginAccess(&surface);
+// Write 4 float values
+__device__ inline void rlcWriteFloat4(cudaSurfaceObject_t surf, int x, int y, float r, float g, float b, float a = 1.0f) {
+    float4 pixel = make_float4(r, g, b, a);
+    surf2Dwrite(pixel, surf, x * sizeof(float4), y);
+}
 
-    dim3 block(16, 16);
-    dim3 grid((width + 15) / 16, (height + 15) / 16);
-    myKernel<<<grid, block>>>((cudaSurfaceObject_t)surfObj, width, height);
+// Read 4 float values
+__device__ inline float4 rlcReadFloat4(cudaSurfaceObject_t surf, int x, int y) {
+    float4 pixel;
+    surf2Dread(&pixel, surf, x * sizeof(float4), y);
+    return pixel;
+}
 
-    RLC_EndAccess(&surface);
-*/
+// =====================================================
+// Bounds-Checked Variants (Optional safety)
+// =====================================================
+
+__device__ inline bool rlcInBounds(int x, int y, int width, int height) {
+    return (x >= 0 && x < width && y >= 0 && y < height);
+}
+
+__device__ inline void rlcWritePixelSafe(cudaSurfaceObject_t surf, int x, int y, int width, int height, unsigned char r, unsigned char g, unsigned char b, unsigned char a = 255) {
+    if (rlcInBounds(x, y, width, height)) {
+        rlcWritePixel(surf, x, y, r, g, b, a);
+    }
+}
 
 #endif // RAYLIB_CUDA_KERNEL_CUH

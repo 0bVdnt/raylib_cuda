@@ -4,6 +4,12 @@
  * Handles platform-specific GPU operations
  */
 
+#ifndef RLC_SKIP_GL_SYNC
+#define RLC_DO_GL_SYNC 1
+#else
+#define RLC_DO_GL_SYNC 0
+#endif
+
 // Platform detection
 #ifdef _WIN32
 #define RLC_PLATFORM_WINDOWS
@@ -69,7 +75,7 @@ extern "C"
     // Returns: 0 for success, 1 for No CUDA and 2 for Wrong GPU
     int rlc_backend_check(void)
     {
-        // Check for the OpenGL renderer
+        // Log OpenGL renderer info
         const char *renderer = (const char *)glGetString(GL_RENDERER);
         const char *vendor = (const char *)glGetString(GL_VENDOR);
 
@@ -88,7 +94,12 @@ extern "C"
         {
             RLC_BACKEND_ERROR("Intel GPU detected (%s)", renderer);
             RLC_BACKEND_ERROR("Please ensure your system uses the NVIDIA GPU for this application");
+#ifdef RLC_PLATFORM_WINDOWS
             RLC_BACKEND_ERROR("On Windows: Right-click the exe -> Run with graphics processor -> NVIDIA");
+            RLC_BACKEND_ERROR("Or set in NVIDIA Control Panel -> Manage 3D Settings -> Program Settings");
+#elif defined(RLC_PLATFORM_LINUX)
+            RLC_BACKEND_ERROR("On Linux: Run with __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia");
+#endif
             return 2; // Error: Wrong GPU
         }
 
@@ -112,8 +123,9 @@ extern "C"
         {
             cudaDeviceProp prop;
             cudaGetDeviceProperties(&prop, i);
-            RLC_BACKEND_LOG("CUDA Device %d: %s(Compute %d.%d)",
-                            i, prop.name, prop.major, prop.minor);
+            RLC_BACKEND_LOG("CUDA Device %d: %s(Compute %d.%d, %zu MB)",
+                            i, prop.name, prop.major, prop.minor,
+                            prop.totalGlobalMem / (1024 * 1024));
         }
 
         // Set device 0 as active device
@@ -123,12 +135,12 @@ extern "C"
             return 1;
         }
 
-        // Enable GL interop on this device
-        err = cudaGLSetGLDevice(0);
-        if (err != cudaSuccess && err != cudaErrorSetOnActiveProcess)
+        // NOTE: cudaSetGLDevice is deprecated since CUDA 5.0
+        // Modern CUDA handles GL interop context automatically
+        // Just ensure we can create a test context
+        err = cudaFree(0); // Lazy context initialization
+        if (!check_cuda_error(err, "cudaFree(0) - context init"))
         {
-            // cudaErrorSetOnActiveProcess means that the device is already set on the current process, this is fine
-            RLC_BACKEND_ERROR("cudaGLSetGLDevice failed: %s", cudaGetErrorString(err));
             return 1;
         }
 
@@ -188,6 +200,12 @@ extern "C"
         cudaGraphicsResource_t resource = static_cast<cudaGraphicsResource_t>(res);
         cudaError_t err;
 
+// Ensure OpenGL has finished all pending operations
+// This prevents race conditions between GL and CUDA
+#if RLC_DO_GL_SYNC
+        glFinish();
+#endif
+
         // Step 1: Map the graphics resource
         err = cudaGraphicsMapResources(1, &resource, 0);
         if (!check_cuda_error(err, "cudaGraphicsMapResource"))
@@ -222,14 +240,25 @@ extern "C"
         return static_cast<unsigned long long>(surfObj);
     }
 
+    // Synchronize GPU
+    void rlc_backend_sync(void)
+    {
+        cudaError_t err = cudaDeviceSynchronize();
+        if (!check_cuda_error(err, "cudaDeviceSynchronize"))
+        {
+            // Log but continue
+        }
+    }
+    
     // Unmap a resource and destroy its surface object
-    void rlc_backend_unmap(void *res, unsigned long long surfaceObject)
+    // sync: if true, calls cudaDeviceSynchronize after unmapping
+    void rlc_backend_unmap(void *res, unsigned long long surfaceObject, bool sync)
     {
         if (res == nullptr)
         {
             return;
         }
-
+        
         if (surfaceObject != 0)
         {
             cudaSurfaceObject_t surfObj = static_cast<cudaSurfaceObject_t>(surfaceObject);
@@ -239,7 +268,7 @@ extern "C"
                 // Continue anyway to unmap the resource
             }
         }
-
+        
         // Unmap the graphics resource
         cudaGraphicsResource_t resource = static_cast<cudaGraphicsResource_t>(res);
         cudaError_t err = cudaGraphicsUnmapResources(1, &resource, 0);
@@ -247,12 +276,20 @@ extern "C"
         {
             // Log but continue
         }
-
-        // Synchronize to ensure all GPU work is completed
-        err = cudaDeviceSynchronize();
-        if (!check_cuda_error(err, "cudaDeviceSynchronize"))
+        
+        if (sync)
         {
-            // Log but continue
+            rlc_backend_sync();
+        }
+    }
+    
+    // Reset CUDA Device
+    void rlc_backend_reset(void)
+    {
+        cudaError_t err = cudaDeviceReset();
+        if (err != cudaSuccess)
+        {
+            RLC_BACKEND_LOG("cudaDeviceReset warning: %s", cudaGetErrorString(err));
         }
     }
 } // extern "C"
