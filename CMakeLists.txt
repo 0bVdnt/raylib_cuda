@@ -39,8 +39,12 @@ endif()
 
 # If RAYLIB_DIR is provided: use that source tree
 # Otherwise: Automatically download and build raylib
-set (RAYLIB_DIR "" CACHE PATH
+set(RAYLIB_DIR "" CACHE PATH
     "Path to a local raylib source tree (with CMakeLists.txt). If empty, raylib will be fetched from GitHub."
+)
+
+set(RAYLIB_VERSION "5.5" CACHE STRING
+    "Raylib version to fetch from GitHub (ignored if RAYLIB_DIR is set)"
 )
 
 # raylib options: Don't build examples/games to boost the speed of raylib setup
@@ -62,12 +66,12 @@ else()
     include(FetchContent)
     set(FETCHCONTENT_QUIET OFF)
     
-    message(STATUS "RAYLIB_DIR not set; fetching raylib from GitHub (master branch)...")
+    message(STATUS "RAYLIB_DIR not set; Fetching raylib ${RAYLIB_VERSION} from GitHub...")
 
     FetchContent_Declare(
         raylib
         GIT_REPOSITORY https://github.com/raysan5/raylib.git
-        GIT_TAG        master
+        GIT_TAG        ${RAYLIB_VERSION}
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(raylib)
@@ -95,6 +99,11 @@ target_include_directories(
 
 # Link raylib (Handles OpenGL Linking)
 target_link_libraries(raylib_cuda PUBLIC raylib)
+
+# Handle static raylib on Windows (Prevents dllimport errors)
+if (RAYLIB_TYPE STREQUAL "STATIC LIBRARY")
+    target_compile_definitions(raylib_cuda PUBLIC RAYLIB_STATIC)
+endif()
 
 # Language standards
 set_target_properties(raylib_cuda PROPERTIES
