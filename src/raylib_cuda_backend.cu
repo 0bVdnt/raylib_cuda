@@ -272,7 +272,7 @@ extern "C"
         // Unmap the graphics resource
         cudaGraphicsResource_t resource = static_cast<cudaGraphicsResource_t>(res);
         cudaError_t err = cudaGraphicsUnmapResources(1, &resource, 0);
-        if (!check_cuda_error(err, "cudaGraphicsUnmapResource"))
+        if (!check_cuda_error(err, "cudaGraphicsUnmapResources"))
         {
             // Log but continue
         }

@@ -493,13 +493,17 @@ RLC_Format RLC_GetFormat(const RLC_Surface *surface)
 
 bool RLC_IsValid(const RLC_Surface *surface)
 {
-    return (surface != NULL && 
-            surface->_cuda_res != NULL && 
+    return (surface != NULL &&
+            surface->_cuda_res != NULL &&
             surface->texture.id != 0);
 }
 
-void RLC_GetVersion(int *major, int *minor, int *patch) {
-    if (major) *major = RLC_VERSION_MAJOR;
-    if (minor) *minor = RLC_VERSION_MINOR;
-    if (patch) *patch = RLC_VERSION_PATCH;
+void RLC_GetVersion(int *major, int *minor, int *patch)
+{
+    if (major)
+        *major = RLC_VERSION_MAJOR;
+    if (minor)
+        *minor = RLC_VERSION_MINOR;
+    if (patch)
+        *patch = RLC_VERSION_PATCH;
 }
