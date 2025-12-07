@@ -154,6 +154,26 @@ extern "C"
     // Returns true if surface is currently mapped for CUDA access
     bool RLC_IsMapped(const RLC_Surface *surface);
 
+    // =================================================================================
+    // 7. Utility Functions
+    // =================================================================================
+
+    // Get the raylib texture from a surface (for drawing)
+    Texture2D RLC_GetTexture(const RLC_Surface *surface);
+
+    // Get surface dimensions
+    int RLC_GetWidth(const RLC_Surface *surface);
+    int RLC_GetHeight(const RLC_Surface *surface);
+
+    // Get surface format
+    RLC_Format RLC_GetFormat(const RLC_Surface *surface);
+
+    // Check if surface is valid (properly initialized)
+    bool RLC_IsValid(const RLC_Surface *surface);
+
+    // Get library version
+    void RLC_GetVersion(int *major, int *minor, int *patch);
+
 #ifdef __cplusplus
 }
 #endif
