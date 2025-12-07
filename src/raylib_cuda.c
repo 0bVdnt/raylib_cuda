@@ -125,6 +125,9 @@ void RLC_CloseCUDA(void)
 // DEPRECATED - Kept for backward compatibility
 bool RLC_Init(int width, int height, const char *title)
 {
+    // Deprecation Warning
+    TraceLog(LOG_WARNING, "RLC: RLC_Init() is deprecated. Use InitWindow() + RLC_InitCUDA() instead");
+
     g_last_error = RLC_OK;
 
     // Initialize raylib window
@@ -215,7 +218,7 @@ RLC_Surface RLC_CreateSurfaceEx(int width, int height, RLC_Format format)
     {
         TraceLog(LOG_ERROR, "RLC: Invalid surface dimensions: %dx%d", width,
                  height);
-        rlc_set_error(RLC_ERROR_REGISTER_FAILED);
+        rlc_set_error(RLC_ERROR_INVALID_ARGUMENT);
         return surf;
     }
 
@@ -278,8 +281,69 @@ RLC_Surface RLC_CreateSurfaceEx(int width, int height, RLC_Format format)
         return surf;
     }
 
-    TraceLog(LOG_INFO, "RLC: Created surface %dx%d (format=%d, bpp=%d)", width, height, format, surf._bytes_per_pixel);
+    TraceLog(LOG_INFO, "RLC: Created surface %dx%d (format=%d, bpp=%d)",
+             width, height, format, surf._bytes_per_pixel);
     return surf;
+}
+
+bool RLC_ResizeSurface(RLC_Surface *surface, int newWidth, int newHeight)
+{
+    if (surface == NULL)
+    {
+        rlc_set_error(RLC_ERROR_NULL_SURFACE);
+        return false;
+    }
+
+    if (newWidth <= 0 || newHeight <= 0)
+    {
+        rlc_set_error(RLC_ERROR_INVALID_ARGUMENT);
+        return false;
+    }
+
+    if (surface->_is_mapped)
+    {
+        TraceLog(LOG_ERROR, "RLC: Cannot resize mapped surface - call RLC_EndAccess first");
+        rlc_set_error(RLC_ERROR_ALREADY_MAPPED);
+        return false;
+    }
+
+    // Same size -> Do nothing
+    if (surface->width == newWidth && surface->height == newHeight)
+    {
+        return true;
+    }
+
+    // Save format before cleanup
+    RLC_Format format = surface->format;
+
+    // Unregister from CUDA
+    if (surface->_cuda_res != NULL)
+    {
+        rlc_backend_unregister(surface->_cuda_res);
+        surface->_cuda_res = NULL;
+    }
+
+    // Unload old texture
+    if (surface->texture.id != 0)
+    {
+        UnloadTexture(surface->texture);
+    }
+
+    // Create new surface with same format
+    RLC_Surface newSurf = RLC_CreateSurfaceEx(newWidth, newHeight, format);
+
+    if (newSurf._cuda_res == NULL)
+    {
+        // Failed - surface is now invalid
+        memset(surface, 0, sizeof(*surface));
+        return false;
+    }
+
+    // Copy new surface data to old surface pointer
+    *surface = newSurf;
+
+    TraceLog(LOG_INFO, "RLC: Resized surface to %dx%d", newWidth, newHeight);
+    return true;
 }
 
 void RLC_UnloadSurface(RLC_Surface *surface)
@@ -401,4 +465,46 @@ bool RLC_IsMapped(const RLC_Surface *surface)
     if (surface == NULL)
         return false;
     return surface->_is_mapped;
+}
+
+Texture2D RLC_GetTexture(const RLC_Surface *surface)
+{
+    if (surface == NULL)
+    {
+        Texture2D empty = {0};
+        return empty;
+    }
+    return surface->texture;
+}
+
+int RLC_GetWidth(const RLC_Surface *surface)
+{
+    return (surface != NULL) ? surface->width : 0;
+}
+
+int RLC_GetHeight(const RLC_Surface *surface)
+{
+    return (surface != NULL) ? surface->height : 0;
+}
+
+RLC_Format RLC_GetFormat(const RLC_Surface *surface)
+{
+    return (surface != NULL) ? surface->format : RLC_FORMAT_RGBA8;
+}
+
+bool RLC_IsValid(const RLC_Surface *surface)
+{
+    return (surface != NULL &&
+            surface->_cuda_res != NULL &&
+            surface->texture.id != 0);
+}
+
+void RLC_GetVersion(int *major, int *minor, int *patch)
+{
+    if (major)
+        *major = RLC_VERSION_MAJOR;
+    if (minor)
+        *minor = RLC_VERSION_MINOR;
+    if (patch)
+        *patch = RLC_VERSION_PATCH;
 }

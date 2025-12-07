@@ -16,12 +16,11 @@ extern "C"
 
 #define RLC_VERSION_MAJOR 1
 #define RLC_VERSION_MINOR 1
-#define RLC_VERSION_PATCH 0
+#define RLC_VERSION_PATCH 1
 
-// Pixel format: RGBA8 (4 Bytes per pixel)
-// When writing from CUDA kernel use:
-// surf2DWrite(make_uchar4(r, g, b, a), surfObj, x * 4, y);
-#define RLC_BYTES_PER_PIXEL 4
+// Default bytes per pixel for RGBA8 format
+// For other formats, use RLC_GetBytesPerPixel()
+#define RLC_DEFAULT_BYTES_PER_PIXEL 4
 
     // =================================================================================
     // 2. Error Codes
@@ -110,6 +109,11 @@ extern "C"
     // Creates a surface with specified format
     RLC_Surface RLC_CreateSurfaceEx(int width, int height, RLC_Format format);
 
+    // Resizes an existing surface
+    // The surface must not be mapped when calling this function
+    // Returns true on success and false on failure
+    bool RLC_ResizeSurface(RLC_Surface *surface, int newWidth, int newHeight);
+
     // Returns bytes per pixel for a format
     int RLC_GetBytesPerPixel(RLC_Format format);
 
@@ -149,6 +153,26 @@ extern "C"
 
     // Returns true if surface is currently mapped for CUDA access
     bool RLC_IsMapped(const RLC_Surface *surface);
+
+    // =================================================================================
+    // 7. Utility Functions
+    // =================================================================================
+
+    // Get the raylib texture from a surface (for drawing)
+    Texture2D RLC_GetTexture(const RLC_Surface *surface);
+
+    // Get surface dimensions
+    int RLC_GetWidth(const RLC_Surface *surface);
+    int RLC_GetHeight(const RLC_Surface *surface);
+
+    // Get surface format
+    RLC_Format RLC_GetFormat(const RLC_Surface *surface);
+
+    // Check if surface is valid (properly initialized)
+    bool RLC_IsValid(const RLC_Surface *surface);
+
+    // Get library version
+    void RLC_GetVersion(int *major, int *minor, int *patch);
 
 #ifdef __cplusplus
 }
