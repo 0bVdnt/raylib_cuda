@@ -109,6 +109,11 @@ extern "C"
     // Creates a surface with specified format
     RLC_Surface RLC_CreateSurfaceEx(int width, int height, RLC_Format format);
 
+    // Resizes an existing surface
+    // The surface must not be mapped when calling this function
+    // Returns true on success and false on failure
+    bool RLC_ResizeSurface(RLC_Surface *surface, int newWidth, int newHeight);
+
     // Returns bytes per pixel for a format
     int RLC_GetBytesPerPixel(RLC_Format format);
 

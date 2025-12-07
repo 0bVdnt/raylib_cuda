@@ -285,6 +285,58 @@ RLC_Surface RLC_CreateSurfaceEx(int width, int height, RLC_Format format)
     return surf;
 }
 
+bool RLC_ResizeSurface(RLC_Surface *surface, int newWidth, int newHeight) {
+    if (surface == NULL) {
+        rlc_set_error(RLC_ERROR_NULL_SURFACE);
+        return false;
+    }
+
+    if (newWidth <= 0 || newHeight <= 0) {
+        rlc_set_error(RLC_ERROR_INVALID_ARGUMENT);
+        return false;
+    }
+    
+    if (surface->_is_mapped) {
+        TraceLog(LOG_ERROR, "RLC: Cannot resize mapped surface - call RLC_EndAccess first");
+        rlc_set_error(RLC_ERROR_ALREADY_MAPPED);
+        return false;
+    }
+
+    // Same size -> Do nothing
+    if (surface->width == newWidth && surface->height == newHeight) {
+        return true;
+    }
+
+    // Save format before cleanup
+    RLC_Format format = surface->format;
+
+    // Unregister from CUDA
+    if (surface->_cuda_res != NULL) {
+        rlc_backend_unregister(surface->_cuda_res);
+        surface->_cuda_res = NULL;
+    }
+
+    // Unload old texture
+    if (surface->texture.id != 0) {
+        UnloadTexture(surface->texture);
+    }
+
+    // Create new surface with same format
+    RLC_Surface newSurf = RLC_CreateSurfaceEx(newWidth, newHeight, format);
+
+    if (newSurf._cuda_res == NULL) {
+        // Failed - surface is now invalid
+        memset(surface, 0, sizeof(*surface));
+        return false;
+    }
+
+    // Copy new surface data to old surface pointer
+    *surface = newSurf;
+
+    TraceLog(LOG_INFO, "RLC: Resized surface to %dx%d", newWidth, newHeight);
+    return true;
+}
+
 void RLC_UnloadSurface(RLC_Surface *surface)
 {
     if (surface == NULL)
