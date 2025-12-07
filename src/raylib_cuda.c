@@ -285,25 +285,30 @@ RLC_Surface RLC_CreateSurfaceEx(int width, int height, RLC_Format format)
     return surf;
 }
 
-bool RLC_ResizeSurface(RLC_Surface *surface, int newWidth, int newHeight) {
-    if (surface == NULL) {
+bool RLC_ResizeSurface(RLC_Surface *surface, int newWidth, int newHeight)
+{
+    if (surface == NULL)
+    {
         rlc_set_error(RLC_ERROR_NULL_SURFACE);
         return false;
     }
 
-    if (newWidth <= 0 || newHeight <= 0) {
+    if (newWidth <= 0 || newHeight <= 0)
+    {
         rlc_set_error(RLC_ERROR_INVALID_ARGUMENT);
         return false;
     }
-    
-    if (surface->_is_mapped) {
+
+    if (surface->_is_mapped)
+    {
         TraceLog(LOG_ERROR, "RLC: Cannot resize mapped surface - call RLC_EndAccess first");
         rlc_set_error(RLC_ERROR_ALREADY_MAPPED);
         return false;
     }
 
     // Same size -> Do nothing
-    if (surface->width == newWidth && surface->height == newHeight) {
+    if (surface->width == newWidth && surface->height == newHeight)
+    {
         return true;
     }
 
@@ -311,20 +316,23 @@ bool RLC_ResizeSurface(RLC_Surface *surface, int newWidth, int newHeight) {
     RLC_Format format = surface->format;
 
     // Unregister from CUDA
-    if (surface->_cuda_res != NULL) {
+    if (surface->_cuda_res != NULL)
+    {
         rlc_backend_unregister(surface->_cuda_res);
         surface->_cuda_res = NULL;
     }
 
     // Unload old texture
-    if (surface->texture.id != 0) {
+    if (surface->texture.id != 0)
+    {
         UnloadTexture(surface->texture);
     }
 
     // Create new surface with same format
     RLC_Surface newSurf = RLC_CreateSurfaceEx(newWidth, newHeight, format);
 
-    if (newSurf._cuda_res == NULL) {
+    if (newSurf._cuda_res == NULL)
+    {
         // Failed - surface is now invalid
         memset(surface, 0, sizeof(*surface));
         return false;
@@ -456,4 +464,42 @@ bool RLC_IsMapped(const RLC_Surface *surface)
     if (surface == NULL)
         return false;
     return surface->_is_mapped;
+}
+
+Texture2D RLC_GetTexture(const RLC_Surface *surface)
+{
+    if (surface == NULL)
+    {
+        Texture2D empty = {0};
+        return empty;
+    }
+    return surface->texture;
+}
+
+int RLC_GetWidth(const RLC_Surface *surface)
+{
+    return (surface != NULL) ? surface->width : 0;
+}
+
+int RLC_GetHeight(const RLC_Surface *surface)
+{
+    return (surface != NULL) ? surface->height : 0;
+}
+
+RLC_Format RLC_GetFormat(const RLC_Surface *surface)
+{
+    return (surface != NULL) ? surface->format : RLC_FORMAT_RGBA8;
+}
+
+bool RLC_IsValid(const RLC_Surface *surface)
+{
+    return (surface != NULL && 
+            surface->_cuda_res != NULL && 
+            surface->texture.id != 0);
+}
+
+void RLC_GetVersion(int *major, int *minor, int *patch) {
+    if (major) *major = RLC_VERSION_MAJOR;
+    if (minor) *minor = RLC_VERSION_MINOR;
+    if (patch) *patch = RLC_VERSION_PATCH;
 }
