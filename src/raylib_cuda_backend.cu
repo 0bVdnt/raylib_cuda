@@ -208,7 +208,7 @@ extern "C"
 
         // Step 1: Map the graphics resource
         err = cudaGraphicsMapResources(1, &resource, 0);
-        if (!check_cuda_error(err, "cudaGraphicsMapResource"))
+        if (!check_cuda_error(err, "cudaGraphicsMapResources"))
         {
             return 0;
         }

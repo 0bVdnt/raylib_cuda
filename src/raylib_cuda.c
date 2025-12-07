@@ -125,6 +125,9 @@ void RLC_CloseCUDA(void)
 // DEPRECATED - Kept for backward compatibility
 bool RLC_Init(int width, int height, const char *title)
 {
+    // Deprecation Warning
+    TraceLog(LOG_WARNING, "RLC: RLC_Init() is deprecated. Use InitWindow() + RLC_InitCUDA() instead");
+
     g_last_error = RLC_OK;
 
     // Initialize raylib window
@@ -215,7 +218,7 @@ RLC_Surface RLC_CreateSurfaceEx(int width, int height, RLC_Format format)
     {
         TraceLog(LOG_ERROR, "RLC: Invalid surface dimensions: %dx%d", width,
                  height);
-        rlc_set_error(RLC_ERROR_REGISTER_FAILED);
+        rlc_set_error(RLC_ERROR_INVALID_ARGUMENT);
         return surf;
     }
 

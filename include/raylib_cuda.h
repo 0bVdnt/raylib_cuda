@@ -18,10 +18,9 @@ extern "C"
 #define RLC_VERSION_MINOR 1
 #define RLC_VERSION_PATCH 0
 
-// Pixel format: RGBA8 (4 Bytes per pixel)
-// When writing from CUDA kernel use:
-// surf2DWrite(make_uchar4(r, g, b, a), surfObj, x * 4, y);
-#define RLC_BYTES_PER_PIXEL 4
+// Default bytes per pixel for RGBA8 format
+// For other formats, use RLC_GetBytesPerPixel()
+#define RLC_DEFAULT_BYTES_PER_PIXEL 4
 
     // =================================================================================
     // 2. Error Codes
