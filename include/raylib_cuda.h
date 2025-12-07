@@ -16,7 +16,7 @@ extern "C"
 
 #define RLC_VERSION_MAJOR 1
 #define RLC_VERSION_MINOR 1
-#define RLC_VERSION_PATCH 0
+#define RLC_VERSION_PATCH 1
 
 // Default bytes per pixel for RGBA8 format
 // For other formats, use RLC_GetBytesPerPixel()
