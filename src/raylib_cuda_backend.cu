@@ -89,7 +89,7 @@ extern "C"
         }
 
         // Check for Intel Integrated GPU (Common on laptops)
-        // This would mean CUDA wont't work with the current GL context
+        // This would mean CUDA won't work with the current GL context
         if (renderer && strstr(renderer, "Intel"))
         {
             RLC_BACKEND_ERROR("Intel GPU detected (%s)", renderer);
@@ -123,7 +123,7 @@ extern "C"
         {
             cudaDeviceProp prop;
             cudaGetDeviceProperties(&prop, i);
-            RLC_BACKEND_LOG("CUDA Device %d: %s(Compute %d.%d, %zu MB)",
+            RLC_BACKEND_LOG("CUDA Device %d: %s (Compute %d.%d, %zu MB)",
                             i, prop.name, prop.major, prop.minor,
                             prop.totalGlobalMem / (1024 * 1024));
         }
@@ -202,6 +202,10 @@ extern "C"
 
 // Ensure OpenGL has finished all pending operations
 // This prevents race conditions between GL and CUDA
+// NOTE: glFinish() is expensive but ensures safety. Users can define
+// RLC_SKIP_GL_SYNC at compile time for maximum performance if they
+// can guarantee no GL operations are pending before CUDA access
+// (e.g., Not mixing GL draws with CUDA)
 #if RLC_DO_GL_SYNC
         glFinish();
 #endif

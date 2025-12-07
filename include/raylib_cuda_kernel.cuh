@@ -34,10 +34,10 @@ __device__ inline void rlcWritePixelF(cudaSurfaceObject_t surf,
                                       float a = 1.0f)
 {
     uchar4 pixel = 
-                make_uchar4((unsigned char)(__saturatef(r) * 255.0f),
-                            (unsigned char)(__saturatef(g) * 255.0f),
-                            (unsigned char)(__saturatef(b) * 255.0f),
-                            (unsigned char)(__saturatef(a) * 255.0f));
+                make_uchar4((unsigned char)(__saturatef(r) * 255.0f + 0.5f),
+                            (unsigned char)(__saturatef(g) * 255.0f + 0.5f),
+                            (unsigned char)(__saturatef(b) * 255.0f + 0.5f),
+                            (unsigned char)(__saturatef(a) * 255.0f + 0.5f));
 
     surf2Dwrite(pixel, surf, x * 4, y);
 }

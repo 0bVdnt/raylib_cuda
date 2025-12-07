@@ -57,7 +57,7 @@ const char *RLC_ErrorString(RLC_Error error)
     case RLC_ERROR_WRONG_GPU:
         return "Wrong GPU (Intel Integrated) Detected - need discrete NVIDIA GPU";
     case RLC_ERROR_INIT_FAILED:
-        return "Initialize failed";
+        return "Initialization failed";
     case RLC_ERROR_INVALID_ARGUMENT:
         return "Invalid argument";
     case RLC_ERROR_UNSUPPORTED_FORMAT:
@@ -166,6 +166,7 @@ bool RLC_Init(int width, int height, const char *title)
 
 void RLC_Close()
 {
+    RLC_CloseCUDA();
     CloseWindow();
     TraceLog(LOG_INFO, "RLC: Shutdown complete");
 }
@@ -248,7 +249,7 @@ RLC_Surface RLC_CreateSurfaceEx(int width, int height, RLC_Format format)
 
     // Allocate and zero the pixel data
     size_t data_size = (size_t)width * height * surf._bytes_per_pixel;
-    img.data = RL_CALLOC(data_size, 1);
+    img.data = RL_CALLOC(1, data_size);
 
     if (img.data == NULL)
     {

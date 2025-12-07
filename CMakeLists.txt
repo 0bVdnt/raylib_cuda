@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 
 project(raylib_cuda_lib
-    VERSION 1.1.0
+    VERSION 1.1.1
     DESCRIPTION "CUDA interop library for raylib"
     LANGUAGES C CXX CUDA
 )
