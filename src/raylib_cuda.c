@@ -281,7 +281,8 @@ RLC_Surface RLC_CreateSurfaceEx(int width, int height, RLC_Format format)
         return surf;
     }
 
-    TraceLog(LOG_INFO, "RLC: Created surface %dx%d (format=%d, bpp=%d)", width, height, format, surf._bytes_per_pixel);
+    TraceLog(LOG_INFO, "RLC: Created surface %dx%d (format=%d, bpp=%d)",
+             width, height, format, surf._bytes_per_pixel);
     return surf;
 }
 
