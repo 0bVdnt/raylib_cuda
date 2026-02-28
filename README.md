@@ -29,18 +29,18 @@
 **raylib_cuda** bridges NVIDIA's CUDA parallel computing platform with the simplicity of raylib. Write CUDA kernels to generate or process images on the GPU, then display them directly using raylib's rendering functions.
 
 Normally, getting GPU-computed pixels onto a raylib texture means allocating CPU memory, copying data back from the GPU, then uploading to OpenGL. This round-trip through system memory is slow and defeats the purpose of GPU computation for real-time visuals. **raylib_cuda** eliminates this bottleneck entirely — the data never leaves the GPU.
-
-```
-┌────────────────────────────────────────────────────────────┐
-│                          GPU                               │
-│                                                            │
-│   CUDA Kernel ──writes to──► OpenGL Texture ──drawn by──►  │
-│                              (shared memory)       raylib  │
-│                                                            │
-└────────────────────────────────────────────────────────────┘
-          No CPU copy. No download. No upload.
-```
-
+<div align="center">
+<pre>
+┌──────────────────────────────────────────────────────────────────────┐
+│                                  GPU                                 │
+│                                                                      │
+│   CUDA Kernel ──writes to──► OpenGL Texture -─► drawn by ──► raylib  │
+│                              (shared memory)                         │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+No CPU copy. No download. No upload.
+</pre>
+</div>
 ### Use Cases
 
 - **Real-time procedural generation** — Fractals, noise, terrain heightmaps
